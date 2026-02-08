@@ -1,26 +1,80 @@
 @import "tailwindcss";
 
+@theme {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-elevated: var(--bg-elevated);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --color-brand-primary: var(--color-primary);
+  --color-brand-hover: var(--color-primary-hover);
+  --color-brand-light: var(--color-primary-light);
+
+  --color-status-success: var(--color-success);
+  --color-status-warning: var(--color-warning);
+  --color-status-danger: var(--color-danger);
+
+  --color-border: var(--border-color);
+  --color-border-light: var(--border-light);
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Professional Minimalist Palette (Slate based) */
+  --bg-primary: #F8FAFC;
+  /* Slate-50 */
+  --bg-secondary: #FFFFFF;
+  /* White */
+  --bg-elevated: #FFFFFF;
+
+  --text-primary: #0F172A;
+  /* Slate-900 */
+  --text-secondary: #475569;
+  /* Slate-600 */
+  --text-muted: #94A3B8;
+  /* Slate-400 */
+
+  /* Primary Brand Color: Dark Slate / Almost Black for serious feel */
+  --color-primary: #0F172A;
+  /* Slate-900 */
+  --color-primary-hover: #1E293B;
+  /* Slate-800 */
+  --color-primary-light: #E2E8F0;
+  /* Slate-200 */
+
+  /* Status Colors (Refined) */
+  --color-success: #059669;
+  /* Emerald-600 */
+  --color-warning: #D97706;
+  /* Amber-600 */
+  --color-danger: #DC2626;
+  /* Red-600 */
+
+  /* Borders & Dividers */
+  --border-color: #E2E8F0;
+  /* Slate-200 */
+  --border-light: #F1F5F9;
+  /* Slate-100 */
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Manual reset removed to avoid conflict with Tailwind Preflight */
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Base button styles to ensure consistency */
+button {
+  font-family: inherit;
 }

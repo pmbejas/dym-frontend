@@ -1,0 +1,48 @@
+'use client';
+import { createContext, useContext, useState, useEffect } from 'react';
+import api from '@/services/api';
+
+const CotizacionContext = createContext();
+
+export function CotizacionProvider({ children }) {
+  const [cotizacion, setCotizacion] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const fetchCotizacion = async () => {
+    try {
+      const { data } = await api.get('/configuracion');
+      const rate = parseFloat(data.cotizacion_dolar) || 0;
+      setCotizacion(rate);
+    } catch (error) {
+      console.error('Error fetching cotizacion:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateCotizacion = async (newRate) => {
+    try {
+      await api.put('/configuracion', { 
+        clave: 'cotizacion_dolar', 
+        valor: newRate.toString() 
+      });
+      setCotizacion(parseFloat(newRate));
+      return true;
+    } catch (error) {
+      console.error('Error updating cotizacion:', error);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    fetchCotizacion();
+  }, []);
+
+  return (
+    <CotizacionContext.Provider value={{ cotizacion, updateCotizacion, refreshCotizacion: fetchCotizacion, loading }}>
+      {children}
+    </CotizacionContext.Provider>
+  );
+}
+
+export const useCotizacion = () => useContext(CotizacionContext);
