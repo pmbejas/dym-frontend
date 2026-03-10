@@ -100,7 +100,7 @@ export default function CategoriasPage() {
   };
 
   const filteredData = categorias.filter(c => 
-    c.nombre.toLowerCase().includes(search.toLowerCase())
+    c.nombre?.toLowerCase().includes(search.toLowerCase())
   );
 
   const columnas = [

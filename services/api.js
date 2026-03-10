@@ -29,13 +29,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Handle unauthorized access (e.g., redirect to login)
-      // We avoid direct redirection here to prevent loops, but can emit event
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      // Handle unauthorized access or forbidden (invalid token)
       if (typeof window !== 'undefined') {
-         // optionally remove token
-         // localStorage.removeItem('token');
-         // window.location.href = '/login'; 
+         // Force logout by clearing all auth data
+         localStorage.removeItem('token');
+         localStorage.removeItem('user');
+         document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+         
+         // Redirect with logout signal to ensure middleware lets us through
+         if (!window.location.search.includes('logout=true')) {
+             window.location.href = '/login?logout=true';
+         }
       }
     }
     return Promise.reject(error);
@@ -68,24 +73,27 @@ export const updateCompra = async (id, data) => {
   return response.data;
 };
 
-export const registrarRecepcion = async (id, data) => {
-  const response = await api.post(`/compras/${id}/recepcion`, data);
+export const registrarRecepcion = (id, data) => api.post(`/compras/${id}/recepcion`, data);
+
+export const registrarPagoCompra = (id, data) => api.post(`/compras/${id}/pago`, data);
+
+export const getProveedores = async (page = 1, limit = 10, search = '') => {
+  const response = await api.get('/proveedores', { params: { page, limit, search } });
   return response.data;
 };
 
-export const registrarPagoCompra = async (id, data) => {
-  const response = await api.post(`/compras/${id}/pago`, data);
+export const getProductos = async (page = 1, limit = 10, search = '') => {
+  const response = await api.get('/productos', { params: { page, limit, search } });
   return response.data;
 };
 
-export const getProveedores = async () => {
-  const response = await api.get('/proveedores');
+export const getClientes = async (page = 1, limit = 10, search = '') => {
+  const response = await api.get('/clientes', { params: { page, limit, search } });
   return response.data;
 };
 
-export const getProductos = async () => {
-  const response = await api.get('/productos');
-  return response.data;
-};
+// Validación de documentos
+export const validatePurchase = (token) => api.post('/validacion/compra', { token });
+export const validateSale = (token) => api.post('/validacion/venta', { token });
 
 export default api;

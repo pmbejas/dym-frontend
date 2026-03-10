@@ -21,8 +21,8 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "ERPy",
-  description: "Sistema de gestión empresarial",
+  title: "DyM Importados",
+  description: "Sistema de gestión",
 };
 
 export default function RootLayout({ children }) {

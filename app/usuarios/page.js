@@ -22,8 +22,17 @@ export default function UsuariosPage() {
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
-    password: ''
+    password: '',
+    confirmPassword: '',
+    rol: 'GENERAL'
   });
+
+  const validatePassword = (password) => {
+    // Min 8, Max 20. Must have Uppercase, Lowercase, Number, and Special Char.
+    // Allowed special chars: Any non-alphanumeric character.
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,20}$/;
+    return regex.test(password);
+  };
 
   useEffect(() => {
     fetchUsuarios();
@@ -35,23 +44,42 @@ export default function UsuariosPage() {
       setUsuarios(Array.isArray(data) ? data : []);
     } catch (error) {
        console.error("Error fetching users", error);
-       setUsuarios([
-         { id: 1, nombre: 'Admin User', email: 'admin@negocio.com', rol: 'admin' },
-       ]);
+       showToast('Error cargando usuarios', 'error');
     }
   };
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    
+    // Validations
+    if (formData.password !== formData.confirmPassword) {
+      showToast('Las contraseñas no coinciden', 'error');
+      return;
+    }
+
+    if (!validatePassword(formData.password)) {
+      showToast('La contraseña debe tener entre 8 y 20 caracteres, incluir mayúscula, minúscula, número y carácter especial.', 'error');
+      return;
+    }
+
     try {
-      await api.post('/usuarios', formData);
+      // Send only necessary data
+      const payload = {
+        nombre: formData.nombre,
+        email: formData.email,
+        password: formData.password,
+        rol: formData.rol
+      };
+
+      await api.post('/usuarios', payload);
       showToast('Usuario creado correctamente', 'success');
       setShowModal(false);
-      setFormData({ nombre: '', email: '', password: '' });
+      setFormData({ nombre: '', email: '', password: '', confirmPassword: '', rol: 'GENERAL' });
       fetchUsuarios();
     } catch (error) {
       console.error(error);
-      showToast('No se pudo crear el usuario', 'error');
+      const msg = error.response?.data?.mensaje || 'No se pudo crear el usuario';
+      showToast(msg, 'error');
     }
   };
 
@@ -64,6 +92,11 @@ export default function UsuariosPage() {
   const confirmResetPassword = async (e) => {
     e.preventDefault();
     if (!resetUserId || !newPassword) return;
+
+    if (!validatePassword(newPassword)) {
+        showToast('La contraseña debe cumplir con los requisitos de seguridad.', 'error');
+        return;
+    }
 
     try {
       await api.post(`/usuarios/${resetUserId}/reset-password`, { password: newPassword });
@@ -87,7 +120,15 @@ export default function UsuariosPage() {
       </div>
     )},
     { header: 'Email', accessor: 'email' },
-    { header: 'Rol', accessor: 'rol', render: () => <span className="bg-purple-100 text-purple-600 px-2 py-1 rounded text-xs">Administrador</span>},
+    { header: 'Rol', accessor: 'rol', render: (row) => (
+        <span className={`px-2 py-1 rounded text-xs font-medium 
+            ${row.rol === 'ADMIN' ? 'bg-purple-100 text-purple-600' : 
+              row.rol === 'VENTAS' ? 'bg-blue-100 text-blue-600' :
+              row.rol === 'COMPRAS' ? 'bg-green-100 text-green-600' :
+              'bg-gray-100 text-gray-600'}`}>
+            {row.rol || 'GENERAL'}
+        </span>
+    )},
   ];
 
   const acciones = (row) => (
@@ -139,16 +180,45 @@ export default function UsuariosPage() {
             onChange={(e) => setFormData({...formData, email: e.target.value})} 
             required 
           />
-          <Input 
-            label="Contraseña" 
-            name="password" 
-            type="password" 
-            value={formData.password} 
-            onChange={(e) => setFormData({...formData, password: e.target.value})} 
-            required 
-          />
+          
+          <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Rol</label>
+              <select
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
+                  value={formData.rol}
+                  onChange={(e) => setFormData({...formData, rol: e.target.value})}
+              >
+                  <option value="GENERAL">General</option>
+                  <option value="ADMIN">Administrador</option>
+                  <option value="VENTAS">Ventas</option>
+                  <option value="COMPRAS">Compras</option>
+              </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input 
+                label="Contraseña" 
+                name="password" 
+                type="password" 
+                value={formData.password} 
+                onChange={(e) => setFormData({...formData, password: e.target.value})} 
+                required 
+              />
+              <Input 
+                label="Confirmar Contraseña" 
+                name="confirmPassword" 
+                type="password" 
+                value={formData.confirmPassword} 
+                onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})} 
+                required 
+              />
+          </div>
+          <p className="text-xs text-slate-500">
+            La contraseña debe tener entre 8 y 20 caracteres, incluir mayúscula, minúscula, número y carácter especial.
+          </p>
+
           <div className="pt-4 flex justify-end gap-3">
-             <Boton tipo="ghost" onClick={() => setShowModal(false)}>Cancelar</Boton>
+             <Boton tipo="ghost" type="button" onClick={() => setShowModal(false)}>Cancelar</Boton>
              <Boton type="submit" tipo="primary">Crear Usuario</Boton>
           </div>
         </form>

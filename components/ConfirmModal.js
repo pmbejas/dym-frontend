@@ -44,14 +44,24 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, title, messag
                     {message}
                   </p>
                   {requirePassword && (
-                    <Input
-                      type="password"
-                      placeholder="Ingrese su contraseña para confirmar"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="mt-2"
-                      autoComplete="new-password"
-                    />
+                    <div className="mt-2 text-left">
+                        {/* Fake input to trick Chrome's password manager */}
+                        <input type="text" name="fakeusernameremembered" style={{display: 'none'}} />
+                        <input type="password" name="fakepasswordremembered" style={{display: 'none'}} />
+                        
+                        <Input
+                          type="text"
+                          name={`validation_${Math.random().toString(36).substring(2, 7)}`}
+                          placeholder="Ingrese su contraseña para confirmar"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          autoComplete="off"
+                          autoFocus
+                          style={{ WebkitTextSecurity: 'disc', fontFamily: 'initial' }}
+                          readOnly={password === ''}
+                          onFocus={(e) => e.target.removeAttribute('readonly')}
+                        />
+                    </div>
                   )}
                 </div>
               </div>

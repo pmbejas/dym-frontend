@@ -34,10 +34,10 @@ export default function GestionPreciosPage() {
     setLoading(true);
     try {
       const [prodRes, catRes] = await Promise.all([
-        api.get('/productos'),
+        api.get('/productos', { params: { page: 1, limit: 1000, search: '' } }),
         api.get('/categorias')
       ]);
-      setProductos(Array.isArray(prodRes.data) ? prodRes.data : []);
+      setProductos(Array.isArray(prodRes.data?.data) ? prodRes.data.data : []);
       setCategorias(Array.isArray(catRes.data) ? catRes.data : []);
       setEditedPrices({});
       setHasChanges(false);
@@ -51,7 +51,7 @@ export default function GestionPreciosPage() {
 
   const getFilteredProducts = () => {
     return productos.filter(p => {
-      const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = p.nombre?.toLowerCase().includes(search.toLowerCase()) || p.sku?.toLowerCase().includes(search.toLowerCase());
       const matchCat = categoryFilter ? p.id_categoria == categoryFilter : true;
       return matchSearch && matchCat;
     });

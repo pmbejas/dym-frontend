@@ -48,13 +48,14 @@ export default function NuevaVentaPage() {
     const cargarDatos = async () => {
         try {
             const [prodRes, cliRes, listRes, catRes] = await Promise.all([
-                api.get('/productos'),
-                api.get('/clientes'),
+                api.get('/productos', { params: { page: 1, limit: 10, search: '' } }),
+                api.get('/clientes', { params: { page: 1, limit: 1000, search: '' } }),
                 api.get('/listas-precios'),
                 api.get('/categorias')
             ]);
-            setProductos(prodRes.data || []);
-            setClientes(cliRes.data || []);
+            
+            setProductos(prodRes.data?.data || []); 
+            setClientes(cliRes.data?.data || []);   
             setListasPrecios(listRes.data || []);
             setCategorias(catRes.data || []);
             
@@ -192,14 +193,22 @@ export default function NuevaVentaPage() {
             router.push('/ventas'); 
         } catch (error) {
             console.error(error);
-            showToast(error.response?.data?.message || 'Error al procesar venta', 'error');
         }
     };
 
-    const productosFiltrados = productos.filter(p => 
-        p.nombre.toLowerCase().includes(terminoBusqueda.toLowerCase()) || 
-        p.sku.toLowerCase().includes(terminoBusqueda.toLowerCase())
-    );
+    useEffect(() => {
+        const timeoutId = setTimeout(async () => {
+            try {
+                const res = await api.get('/productos', { params: { page: 1, limit: 50, search: terminoBusqueda } });
+                setProductos(res.data?.data || []);
+            } catch (error) {
+                console.error("Error buscando productos:", error);
+            }
+        }, 300);
+        return () => clearTimeout(timeoutId);
+    }, [terminoBusqueda]);
+
+    const productosFiltrados = productos;
 
     const agregarPago = () => {
         let monto;

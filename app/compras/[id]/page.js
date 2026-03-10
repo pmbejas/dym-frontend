@@ -5,7 +5,8 @@ import LayoutPrincipal from '@/components/LayoutPrincipal';
 import Boton from '@/components/Boton';
 import { getCompraById, registrarRecepcion, registrarPagoCompra, confirmarCompra } from '@/services/api';
 import { useToast } from '@/context/ToastContext';
-import { ArrowLeftIcon, CheckCircleIcon, BanknotesIcon, PencilSquareIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, CheckCircleIcon, BanknotesIcon, PencilSquareIcon, LockClosedIcon, PrinterIcon } from '@heroicons/react/24/outline';
+import { generarDetalleCompraPDF } from '@/utils/pdfGenerator';
 
 export default function DetalleCompraPage({ params }) {
     const router = useRouter();
@@ -120,99 +121,103 @@ export default function DetalleCompraPage({ params }) {
 
     return (
         <LayoutPrincipal>
-            <div className="space-y-6">
-                {/* Header Actions */}
-                <div className="flex items-center justify-between">
-                    <button 
-                        onClick={() => router.back()}
-                        className="flex items-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-                    >
-                        <ArrowLeftIcon className="w-5 h-5 mr-1" />
-                        Volver
-                    </button>
-                    <div className="flex gap-3">
-                        {isPendiente && (
-                            <>
-                                <Boton onClick={() => router.push(`/compras/${id}/editar`)} tipo="secondary">
-                                    <PencilSquareIcon className="w-5 h-5 mr-2" />
-                                    Editar
-                                </Boton>
-                                <Boton onClick={handleConfirmarCompra} tipo="primary">
-                                    <LockClosedIcon className="w-5 h-5 mr-2" />
-                                    Confirmar Orden
-                                </Boton>
-                            </>
-                        )}
-
-                        {canManage && compra.estado_pago !== 'PAGADO' && (
-                            <Boton onClick={() => setShowPagoModal(true)} tipo="secondary">
-                                <BanknotesIcon className="w-5 h-5 mr-2" />
-                                Registrar Pago
-                            </Boton>
-                        )}
-                        {canManage && compra.estado_recepcion !== 'RECIBIDA' && (
-                            <Boton onClick={() => setShowRecepcionModal(true)} tipo="primary">
-                                <CheckCircleIcon className="w-5 h-5 mr-2" />
-                                Recibir Mercadería
-                            </Boton>
-                        )}
-                    </div>
-                </div>
-
-                {/* Purchase Info Card */}
-                <div className="bg-[var(--bg-secondary)] p-6 rounded-lg border border-[var(--border-light)] shadow-sm">
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-2xl font-bold text-[var(--text-primary)]">Orden #{compra.numero_orden || compra.id}</h1>
-                                {isPendiente && <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-bold border border-gray-200">BORRADOR</span>}
-                                {compra.estado === 'CONFIRMADA' && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-xs font-bold border border-blue-200">CONFIRMADA</span>}
+            <div className="space-y-4">
+                {/* Compact Header */}
+                <div className="bg-[var(--bg-secondary)] p-3 rounded-lg border border-[var(--border-light)]">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <button 
+                                onClick={() => router.back()}
+                                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                            >
+                                <ArrowLeftIcon className="w-5 h-5" />
+                            </button>
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h1 className="text-base font-bold text-[var(--text-primary)]">
+                                        {compra.numero_orden || `#${compra.id}`}
+                                    </h1>
+                                    <button
+                                        onClick={() => generarDetalleCompraPDF(compra)}
+                                        className="text-[var(--text-muted)] hover:text-[var(--color-brand-primary)] transition-colors ml-2"
+                                        title="Descargar Orden de Compra"
+                                    >
+                                        <PrinterIcon className="w-5 h-5" />
+                                    </button>
+                                    {isPendiente && <span className="bg-gray-50 text-gray-600 px-1.5 py-0.5 rounded text-[10px] font-medium">BORRADOR</span>}
+                                    {compra.estado === 'CONFIRMADA' && <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded text-[10px] font-medium">CONFIRMADA</span>}
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                        compra.estado_pago === 'PAGADO' ? 'bg-green-50 text-green-700' : 
+                                        compra.estado_pago === 'PARCIAL' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'
+                                    }`}>
+                                        Pago: {compra.estado_pago}
+                                    </span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                        compra.estado_recepcion === 'RECIBIDA' ? 'bg-emerald-50 text-emerald-700' : 
+                                        compra.estado_recepcion === 'PARCIAL' ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'
+                                    }`}>
+                                        Recepción: {compra.estado_recepcion}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-[var(--text-secondary)] mt-0.5">{compra.Proveedor?.razon_social}</p>
                             </div>
-                            <p className="text-[var(--text-secondary)] font-medium">{compra.Proveedor?.razon_social}</p>
                         </div>
-                        <div className="text-right">
-                            <p className="text-sm text-[var(--text-muted)] uppercase font-bold">Total Compra</p>
-                            <p className="text-2xl font-bold text-[var(--color-brand-primary)]">
-                                {compra.moneda} {parseFloat(compra.total).toLocaleString('es-AR', {minimumFractionDigits: 2})}
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <div className="flex gap-4 mt-4">
-                        <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                            compra.estado_pago === 'PAGADO' ? 'bg-green-50 text-green-700 border-green-200' : 
-                            compra.estado_pago === 'PARCIAL' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200'
-                        }`}>
-                            Pago: {compra.estado_pago}
-                        </div>
-                        <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                            compra.estado_recepcion === 'RECIBIDA' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                            compra.estado_recepcion === 'PARCIAL' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-red-50 text-red-700 border-red-200'
-                        }`}>
-                            Recepción: {compra.estado_recepcion}
+                        <div className="flex items-center gap-2">
+                            <div className="text-right mr-3">
+                                <p className="text-[10px] text-[var(--text-muted)] uppercase font-medium">Total</p>
+                                <p className="text-lg font-bold text-[var(--color-brand-primary)]">
+                                    {compra.moneda} {parseFloat(compra.total).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                                </p>
+                            </div>
+                            <div className="flex gap-1.5">
+                                {isPendiente && (
+                                    <>
+                                        <Boton onClick={() => router.push(`/compras/${id}/editar`)} tipo="secondary" className="py-1.5 text-sm flex items-center">
+                                            <PencilSquareIcon className="w-4 h-4 mr-1" />
+                                            Editar
+                                        </Boton>
+                                        <Boton onClick={handleConfirmarCompra} tipo="primary" className="py-1.5 text-sm flex items-center">
+                                            <LockClosedIcon className="w-4 h-4 mr-1" />
+                                            Confirmar
+                                        </Boton>
+                                    </>
+                                )}
+                                {canManage && compra.estado_pago !== 'PAGADO' && (
+                                    <Boton onClick={() => setShowPagoModal(true)} tipo="secondary" className="py-1.5 text-sm flex items-center">
+                                        <BanknotesIcon className="w-4 h-4 mr-1" />
+                                        Pago
+                                    </Boton>
+                                )}
+                                {canManage && compra.estado_recepcion !== 'RECIBIDA' && (
+                                    <Boton onClick={() => setShowRecepcionModal(true)} tipo="primary" className="py-1.5 text-sm flex items-center">
+                                        <CheckCircleIcon className="w-4 h-4 mr-1" />
+                                        Recibir
+                                    </Boton>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Tabs */}
                 <div className="border-b border-[var(--border-light)]">
-                    <nav className="-mb-px flex space-x-8">
+                    <nav className="-mb-px flex space-x-6">
                         <button
                             onClick={() => setActiveTab('detalle')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                            className={`py-2 px-1 border-b-2 font-medium text-xs ${
                                 activeTab === 'detalle'
                                     ? 'border-[var(--color-brand-primary)] text-[var(--color-brand-primary)]'
-                                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-gray-300'
+                                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                             }`}
                         >
-                            Detalle de Productos
+                            Productos
                         </button>
                         <button
-                            onClick={() => setActiveTab('pagos')} // In future implement payments history tab
-                            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                            onClick={() => setActiveTab('pagos')}
+                            className={`py-2 px-1 border-b-2 font-medium text-xs ${
                                 activeTab === 'pagos'
                                     ? 'border-[var(--color-brand-primary)] text-[var(--color-brand-primary)]'
-                                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-gray-300'
+                                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                             }`}
                         >
                             Pagos
@@ -223,31 +228,31 @@ export default function DetalleCompraPage({ params }) {
                 {/* Content */}
                 {activeTab === 'detalle' && (
                     <div className="overflow-hidden border border-[var(--border-light)] rounded-lg">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-xs">
                             <thead className="bg-[var(--bg-primary)]">
                                 <tr>
-                                    <th className="px-6 py-3 text-left font-medium text-[var(--text-secondary)]">Producto</th>
-                                    <th className="px-6 py-3 text-center font-medium text-[var(--text-secondary)]">Cant. Ordenada</th>
-                                    <th className="px-6 py-3 text-center font-medium text-[var(--text-secondary)]">Cant. Recibida</th>
-                                    <th className="px-6 py-3 text-center font-medium text-[var(--text-secondary)]">Pendiente</th>
-                                    <th className="px-6 py-3 text-right font-medium text-[var(--text-secondary)]">Costo Unit.</th>
-                                    <th className="px-6 py-3 text-right font-medium text-[var(--text-secondary)]">Subtotal</th>
+                                    <th className="px-3 py-2 text-left font-medium text-[var(--text-secondary)]">Producto</th>
+                                    <th className="px-3 py-2 text-center font-medium text-[var(--text-secondary)]">Ordenada</th>
+                                    <th className="px-3 py-2 text-center font-medium text-[var(--text-secondary)]">Recibida</th>
+                                    <th className="px-3 py-2 text-center font-medium text-[var(--text-secondary)]">Pendiente</th>
+                                    <th className="px-3 py-2 text-right font-medium text-[var(--text-secondary)]">Costo</th>
+                                    <th className="px-3 py-2 text-right font-medium text-[var(--text-secondary)]">Subtotal</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-[var(--border-light)] bg-[var(--bg-secondary)]">
+                            <tbody className="divide-y divide-[var(--border-light)] bg-white">
                                 {compra.CompraDetalles?.map((item) => {
-                                    const pendiente = parseFloat(item.cantidad) - parseFloat(item.cantidad_recibida);
+                                    const pendiente = parseFloat(item.cantidad) - parseFloat(item.cantidad_recibida || 0);
                                     return (
                                         <tr key={item.id}>
-                                            <td className="px-6 py-4">
-                                                <p className="font-bold text-[var(--text-primary)]">{item.Producto?.nombre}</p>
-                                                <p className="text-xs text-[var(--text-muted)]">{item.Producto?.sku}</p>
+                                            <td className="px-3 py-2">
+                                                <p className="font-medium text-[var(--text-primary)]">{item.Producto?.nombre}</p>
+                                                <p className="text-[10px] text-[var(--text-muted)]">{item.Producto?.sku}</p>
                                             </td>
-                                            <td className="px-6 py-4 text-center text-[var(--text-secondary)]">{item.cantidad}</td>
-                                            <td className="px-6 py-4 text-center font-bold text-emerald-600">{item.cantidad_recibida}</td>
-                                            <td className="px-6 py-4 text-center font-bold text-amber-600">{pendiente}</td>
-                                            <td className="px-6 py-4 text-right text-[var(--text-secondary)]">${parseFloat(item.costo_unitario).toFixed(2)}</td>
-                                            <td className="px-6 py-4 text-right font-bold text-[var(--text-primary)]">
+                                            <td className="px-3 py-2 text-center text-[var(--text-secondary)]">{item.cantidad}</td>
+                                            <td className="px-3 py-2 text-center font-semibold text-emerald-600">{item.cantidad_recibida || 0}</td>
+                                            <td className="px-3 py-2 text-center font-semibold text-amber-600">{pendiente}</td>
+                                            <td className="px-3 py-2 text-right text-[var(--text-secondary)]">${parseFloat(item.costo_unitario).toFixed(2)}</td>
+                                            <td className="px-3 py-2 text-right font-semibold text-[var(--text-primary)]">
                                                 ${(parseFloat(item.cantidad) * parseFloat(item.costo_unitario)).toFixed(2)}
                                             </td>
                                         </tr>
@@ -259,9 +264,67 @@ export default function DetalleCompraPage({ params }) {
                 )}
                 
                 {activeTab === 'pagos' && (
-                    <div className="p-8 text-center bg-[var(--bg-secondary)] rounded-lg border border-dashed border-[var(--border-color)]">
-                        <p className="text-[var(--text-muted)]">Historial de pagos detallado disponible próximamente.</p>
-                        <p className="text-sm text-[var(--text-secondary)] mt-2">Puede registrar nuevos pagos usando el botón superior.</p>
+                    <div className="space-y-4">
+                        {/* Summary Card */}
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="bg-[var(--bg-secondary)] p-3 rounded-lg border border-[var(--border-light)] text-center">
+                                <p className="text-[10px] text-[var(--text-secondary)] uppercase font-bold">Total Compra</p>
+                                <p className="text-base font-bold text-[var(--text-primary)]">
+                                    {compra.moneda} {parseFloat(compra.total).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                                </p>
+                            </div>
+                            <div className="bg-[var(--bg-secondary)] p-3 rounded-lg border border-[var(--border-light)] text-center">
+                                <p className="text-[10px] text-[var(--text-secondary)] uppercase font-bold">Total Pagado</p>
+                                <p className="text-base font-bold text-green-600">
+                                    {compra.moneda} {compra.Pagos?.reduce((acc, p) => acc + parseFloat(p.monto), 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                                </p>
+                            </div>
+                            <div className="bg-[var(--bg-secondary)] p-3 rounded-lg border border-[var(--border-light)] text-center">
+                                <p className="text-[10px] text-[var(--text-secondary)] uppercase font-bold">Saldo Pendiente</p>
+                                <p className="text-base font-bold text-red-600">
+                                    {compra.moneda} {(parseFloat(compra.total) - compra.Pagos?.reduce((acc, p) => acc + parseFloat(p.monto), 0)).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Payments Table */}
+                        <div className="overflow-hidden border border-[var(--border-light)] rounded-lg">
+                            <table className="w-full text-xs">
+                                <thead className="bg-[var(--bg-primary)]">
+                                    <tr>
+                                        <th className="px-3 py-2 text-left font-medium text-[var(--text-secondary)]">Fecha</th>
+                                        <th className="px-3 py-2 text-left font-medium text-[var(--text-secondary)]">Concepto / Medio</th>
+                                        <th className="px-3 py-2 text-right font-medium text-[var(--text-secondary)]">Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[var(--border-light)] bg-white">
+                                    {compra.Pagos && compra.Pagos.length > 0 ? (
+                                        compra.Pagos.map((pago) => (
+                                            <tr key={pago.id}>
+                                                <td className="px-3 py-2 text-[var(--text-primary)]">
+                                                    {new Date(pago.fecha).toLocaleDateString('es-AR')} <span className="text-[var(--text-muted)] text-[10px]">{new Date(pago.fecha).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</span>
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    <p className="font-medium text-[var(--text-primary)]">{pago.concepto}</p>
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-800 border border-gray-200">
+                                                        {pago.medio_pago}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2 text-right font-bold text-green-600">
+                                                    {compra.moneda} {parseFloat(pago.monto).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="3" className="px-3 py-6 text-center text-[var(--text-muted)]">
+                                                No se han registrado pagos
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
             </div>
@@ -286,8 +349,8 @@ export default function DetalleCompraPage({ params }) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[var(--border-light)]">
-                                    {compra.CompraDetalles?.filter(d => d.cantidad - d.cantidad_recibida > 0).map(item => {
-                                        const pendiente = parseFloat(item.cantidad) - parseFloat(item.cantidad_recibida);
+                                    {compra.CompraDetalles?.filter(d => parseFloat(d.cantidad) - parseFloat(d.cantidad_recibida || 0) > 0).map(item => {
+                                        const pendiente = parseFloat(item.cantidad) - parseFloat(item.cantidad_recibida || 0);
                                         return (
                                             <tr key={item.id} className="group">
                                                 <td className="py-3 pr-4">

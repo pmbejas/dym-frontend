@@ -4,9 +4,11 @@ import LayoutPrincipal from '@/components/LayoutPrincipal';
 import Boton from '@/components/Boton';
 import Tabla from '@/components/Tabla';
 import api from '@/services/api';
-import { generarPDF } from '@/utils/pdfGenerator';
+import { generarPDF, generarListadoVentasPDF } from '@/utils/pdfGenerator';
 import { useToast } from '@/context/ToastContext';
 import Link from 'next/link';
+import { PrinterIcon, TruckIcon } from '@heroicons/react/24/outline';
+import ModalEntregasPendientes from '@/app/panel/ModalEntregasPendientes';
 
 
 export default function VentasPage() {
@@ -15,6 +17,7 @@ export default function VentasPage() {
     const [isLoading, setIsLoading] = useState(true);
 
     const [showModal, setShowModal] = useState(false);
+    const [showPendientesModal, setShowPendientesModal] = useState(false);
     const [selectedVenta, setSelectedVenta] = useState(null);
     const [activeTab, setActiveTab] = useState('venta');
 
@@ -232,6 +235,46 @@ export default function VentasPage() {
         )}
     ];
 
+    // Filter logic extracted for reuse
+    const ventasFiltradas = ventas.filter(venta => {
+        // Client filter
+        if (filtroCliente) {
+            const clienteNombre = `${venta.Cliente?.apellido || ''} ${venta.Cliente?.nombre || ''}`.toLowerCase();
+            const busqueda = filtroCliente.toLowerCase();
+            if (!clienteNombre.includes(busqueda) && !venta.numero_factura?.toLowerCase().includes(busqueda)) {
+                return false;
+            }
+        }
+
+        // Date range filter
+        if (filtroFechaDesde) {
+            const ventaDate = new Date(venta.fecha);
+            const desdeDate = new Date(filtroFechaDesde + 'T00:00:00');
+            if (ventaDate < desdeDate) {
+                return false;
+            }
+        }
+        if (filtroFechaHasta) {
+            const ventaDate = new Date(venta.fecha);
+            const hastaDate = new Date(filtroFechaHasta + 'T23:59:59');
+            if (ventaDate > hastaDate) {
+                return false;
+            }
+        }
+
+        // Payment status filter
+        if (filtroEstadoPago !== 'TODOS' && venta.estado !== filtroEstadoPago) {
+            return false;
+        }
+
+        // Delivery status filter
+        if (filtroEstadoEntrega !== 'TODOS' && venta.estado_entrega !== filtroEstadoEntrega) {
+            return false;
+        }
+
+        return true;
+    });
+
     return (
         <LayoutPrincipal>
             <div className="flex justify-between items-center mb-6">
@@ -239,85 +282,48 @@ export default function VentasPage() {
                     <h1 className="text-2xl font-bold text-[var(--text-primary)]">Ventas</h1>
                     <p className="text-[var(--text-secondary)]">Historial de transacciones</p>
                 </div>
-                <Link href="/ventas/nueva">
-                    <Boton tipo="primary" className="flex items-center gap-2">
-                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                         </svg> Nuevo
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => setShowPendientesModal(true)}
+                        className="bg-orange-50 text-orange-600 px-4 py-2 rounded-lg hover:bg-orange-100 transition-colors flex items-center gap-2 font-medium"
+                    >
+                        <TruckIcon className="w-5 h-5" />
+                        Entregas Pendientes
+                    </button>
+                    <Boton 
+                        onClick={() => generarListadoVentasPDF(ventasFiltradas, {
+                            cliente: filtroCliente,
+                            fechaDesde: filtroFechaDesde,
+                            fechaHasta: filtroFechaHasta,
+                            estadoPago: filtroEstadoPago,
+                            estadoEntrega: filtroEstadoEntrega
+                        })}
+                        tipo="secondary"
+                        className="flex items-center gap-2"
+                        title="Exportar Listado a PDF"
+                    >
+                        <PrinterIcon className="w-5 h-5" />
+                        PDF
                     </Boton>
-                </Link>
+                    <Link href="/ventas/nueva">
+                        <Boton tipo="primary" className="flex items-center gap-2">
+                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                             </svg> Nuevo
+                        </Boton>
+                    </Link>
+                </div>
             </div>
 
+             {/* Modal Entregas Pendientes */}
+            {showPendientesModal && (
+                <ModalEntregasPendientes onClose={() => setShowPendientesModal(false)} />
+            )}
+
             {/* Filters Section */}
-            <div className="bg-[var(--bg-secondary)] rounded-lg shadow-md border border-[var(--border-light)] p-4 mb-6 transition-all hover:shadow-lg">
-                <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wide">Filtros</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    {/* Client Filter */}
-                    <div>
-                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1 uppercase">Cliente</label>
-                        <input
-                            type="text"
-                            placeholder="Buscar cliente..."
-                            value={filtroCliente}
-                            onChange={(e) => setFiltroCliente(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-[var(--border-color)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-primary)] focus:border-transparent bg-[var(--bg-primary)] text-[var(--text-primary)] transition-shadow"
-                        />
-                    </div>
-
-                    {/* Date From Filter */}
-                    <div>
-                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1 uppercase">Desde</label>
-                        <input
-                            type="date"
-                            value={filtroFechaDesde}
-                            onChange={(e) => setFiltroFechaDesde(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-[var(--border-color)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-primary)] focus:border-transparent bg-[var(--bg-primary)] text-[var(--text-primary)] transition-shadow"
-                        />
-                    </div>
-
-                    {/* Date To Filter */}
-                    <div>
-                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1 uppercase">Hasta</label>
-                        <input
-                            type="date"
-                            value={filtroFechaHasta}
-                            onChange={(e) => setFiltroFechaHasta(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-[var(--border-color)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-primary)] focus:border-transparent bg-[var(--bg-primary)] text-[var(--text-primary)] transition-shadow"
-                        />
-                    </div>
-
-                    {/* Payment Status Filter */}
-                    <div>
-                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1 uppercase">Estado de Pago</label>
-                        <select
-                            value={filtroEstadoPago}
-                            onChange={(e) => setFiltroEstadoPago(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-[var(--border-color)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-primary)] focus:border-transparent bg-[var(--bg-primary)] text-[var(--text-primary)] transition-shadow"
-                        >
-                            <option value="TODOS">Todos</option>
-                            <option value="PENDIENTE">Pendiente</option>
-                            <option value="PAGADA">Pagada</option>
-                        </select>
-                    </div>
-
-                    {/* Delivery Status Filter */}
-                    <div>
-                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1 uppercase">Estado de Entrega</label>
-                        <select
-                            value={filtroEstadoEntrega}
-                            onChange={(e) => setFiltroEstadoEntrega(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-[var(--border-color)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-primary)] focus:border-transparent bg-[var(--bg-primary)] text-[var(--text-primary)] transition-shadow"
-                        >
-                            <option value="TODOS">Todos</option>
-                            <option value="PENDIENTE">Pendiente</option>
-                            <option value="PARCIAL">Parcial</option>
-                            <option value="ENTREGADO">Entregado</option>
-                        </select>
-                    </div>
-                </div>
-
-                {/* Clear Filters Button */}
-                <div className="flex justify-end mt-4">
+            <div className="bg-[var(--bg-secondary)] rounded-lg shadow-md border border-[var(--border-light)] px-4 pt-2 mb-6 transition-all hover:shadow-lg">
+                <div className="flex justify-between align-center">
+                    <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wide">Filtros</h3>
                     <button
                         onClick={() => {
                             setFiltroCliente('');
@@ -334,47 +340,71 @@ export default function VentasPage() {
                         Limpiar Filtros
                     </button>
                 </div>
+            <div className="bg-[var(--bg-secondary)] p-2 rounded-lg border border-[var(--border-light)] mb-4">
+                <div className="flex flex-col md:flex-row gap-2 items-center">
+                    {/* Search - Flex Grow */}
+                    <div className="flex-1 w-full">
+                        <input 
+                            type="text"
+                            placeholder="Buscar por cliente, factura..."
+                            className="w-full px-3 py-1.5 text-xs bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg focus:ring-1 focus:ring-[var(--color-brand-primary)] focus:border-transparent outline-none transition-all placeholder:text-[var(--text-muted)]"
+                            value={filtroCliente}
+                            onChange={(e) => setFiltroCliente(e.target.value)}
+                        />
+                    </div>
+                    
+                    {/* Date Filters - Compact Side by Side */}
+                    <div className="flex gap-1 w-full md:w-auto">
+                        <div className="relative">
+                           <input
+                            type="date"
+                            value={filtroFechaDesde}
+                            onChange={(e) => setFiltroFechaDesde(e.target.value)}
+                            className="w-full md:w-32 px-2 py-1.5 text-xs border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-brand-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)]"
+                            title="Fecha Desde"
+                           />
+                        </div>
+                        <div className="relative">
+                           <input
+                            type="date"
+                            value={filtroFechaHasta}
+                            onChange={(e) => setFiltroFechaHasta(e.target.value)}
+                            className="w-full md:w-32 px-2 py-1.5 text-xs border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-brand-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)]"
+                            title="Fecha Hasta"
+                           />
+                        </div>
+                    </div>
+                    
+                    {/* Status Filters - Compact */}
+                    <div className="flex gap-1 w-full md:w-auto">
+                        <select
+                            value={filtroEstadoPago}
+                            onChange={(e) => setFiltroEstadoPago(e.target.value)}
+                            className="w-full md:w-auto px-2 py-1.5 text-xs bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg focus:ring-1 focus:ring-[var(--color-brand-primary)] outline-none text-[var(--text-secondary)] font-medium cursor-pointer hover:border-[var(--color-brand-primary)] transition-colors"
+                        >
+                            <option value="TODOS">💰 Pago: Todos</option>
+                            <option value="PENDIENTE">Pendiente</option>
+                            <option value="PAGADA">Pagada</option>
+                        </select>
+
+                        <select
+                            value={filtroEstadoEntrega}
+                            onChange={(e) => setFiltroEstadoEntrega(e.target.value)}
+                            className="w-full md:w-auto px-2 py-1.5 text-xs bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg focus:ring-1 focus:ring-[var(--color-brand-primary)] outline-none text-[var(--text-secondary)] font-medium cursor-pointer hover:border-[var(--color-brand-primary)] transition-colors"
+                        >
+                            <option value="TODOS">📦 Entrega: Todos</option>
+                            <option value="PENDIENTE">Pendiente</option>
+                            <option value="PARCIAL">Parcial</option>
+                            <option value="ENTREGADO">Entregado</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
             </div>
 
             <Tabla 
                 columnas={columnas} 
-                datos={ventas.filter(venta => {
-                    // Client filter
-                    if (filtroCliente) {
-                        const clienteNombre = `${venta.Cliente?.apellido || ''} ${venta.Cliente?.nombre || ''}`.toLowerCase();
-                        if (!clienteNombre.includes(filtroCliente.toLowerCase())) {
-                            return false;
-                        }
-                    }
-
-                    // Date range filter
-                    if (filtroFechaDesde) {
-                        const ventaDate = new Date(venta.fecha);
-                        const desdeDate = new Date(filtroFechaDesde + 'T00:00:00');
-                        if (ventaDate < desdeDate) {
-                            return false;
-                        }
-                    }
-                    if (filtroFechaHasta) {
-                        const ventaDate = new Date(venta.fecha);
-                        const hastaDate = new Date(filtroFechaHasta + 'T23:59:59');
-                        if (ventaDate > hastaDate) {
-                            return false;
-                        }
-                    }
-
-                    // Payment status filter
-                    if (filtroEstadoPago !== 'TODOS' && venta.estado !== filtroEstadoPago) {
-                        return false;
-                    }
-
-                    // Delivery status filter
-                    if (filtroEstadoEntrega !== 'TODOS' && venta.estado_entrega !== filtroEstadoEntrega) {
-                        return false;
-                    }
-
-                    return true;
-                })} 
+                datos={ventasFiltradas} 
             />
 
             {/* Detalle Modal */}

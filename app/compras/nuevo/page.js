@@ -30,11 +30,11 @@ export default function NuevaCompraPage() {
     const fetchData = async () => {
       try {
         const [resProveedores, resProductos] = await Promise.all([
-          api.get('/proveedores'),
-          api.get('/productos')
+          api.get('/proveedores', { params: { page: 1, limit: 1000, search: '' } }),
+          api.get('/productos', { params: { page: 1, limit: 1000, search: '' } })
         ]);
-        setProveedores(resProveedores.data);
-        setProductos(resProductos.data);
+        setProveedores(resProveedores.data?.data || resProveedores.data || []);
+        setProductos(resProductos.data?.data || []);
       } catch (error) {
         console.error("Error loading data", error);
       }

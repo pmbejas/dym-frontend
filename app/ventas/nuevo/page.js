@@ -28,11 +28,11 @@ export default function NuevaVentaPage() {
     const fetchData = async () => {
       try {
         const [resClientes, resProductos] = await Promise.all([
-          api.get('/clientes'),
-          api.get('/productos')
+          api.get('/clientes', { params: { page: 1, limit: 1000, search: '' } }),
+          api.get('/productos', { params: { page: 1, limit: 1000, search: '' } })
         ]);
-        setClientes(resClientes.data);
-        setProductos(resProductos.data);
+        setClientes(resClientes.data?.data || []);
+        setProductos(resProductos.data?.data || []);
       } catch (error) {
         console.error("Error loading data", error);
       }

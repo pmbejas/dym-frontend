@@ -5,15 +5,21 @@ import Tabla from '@/components/Tabla';
 import Boton from '@/components/Boton';
 import Modal from '@/components/Modal';
 import Input from '@/components/Input';
-import api from '@/services/api';
+import api, { getClientes } from '@/services/api';
 import { useToast } from '@/context/ToastContext';
 import ConfirmModal from '@/components/ConfirmModal';
-import { PlusIcon, UserIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, UserIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 export default function ClientesPage() {
   const { showToast } = useToast();
   const [clientes, setClientes] = useState([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [showModal, setShowModal] = useState(false);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   
   // Confirm Modal
   const [showConfirm, setShowConfirm] = useState(false);
@@ -32,18 +38,27 @@ export default function ClientesPage() {
     email: ''
   });
 
+  // Use effectively a debounced search to avoid fetching per keystroke
   useEffect(() => {
-    fetchClientes();
-  }, []);
+    const delayDebounceFn = setTimeout(() => {
+      fetchClientes();
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [search, currentPage, itemsPerPage]);
 
   const fetchClientes = async () => {
     try {
-      const { data } = await api.get('/clientes');
-      setClientes(Array.isArray(data) ? data : []);
+      const result = await getClientes(currentPage, itemsPerPage, search);
+      setClientes(Array.isArray(result.data) ? result.data : []);
+      setTotalPages(result.totalPages || 1);
+      setTotalRecords(result.totalItems || 0);
     } catch (error) {
        console.error("Error fetching clients", error);
        showToast('No se pudo cargar la lista de clientes.', 'error');
        setClientes([]);
+       setTotalPages(1);
+       setTotalRecords(0);
     }
   };
 
@@ -83,26 +98,28 @@ export default function ClientesPage() {
     setShowConfirm(true);
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = async (password) => {
     if (!deleteId) return;
     try {
-        await api.delete(`/clientes/${deleteId}`);
+        await api.delete(`/clientes/${deleteId}`, { data: { password } });
         showToast('El cliente ha sido eliminado.', 'success');
+        setDeleteId(null);
+        setShowConfirm(false);
         fetchClientes();
     } catch (error) {
         console.error(error);
-        showToast('No se pudo eliminar el cliente.', 'error');
-    } finally {
-        setDeleteId(null);
-        setShowConfirm(false);
+        if (error.response && error.response.data && error.response.data.error) {
+           showToast(error.response.data.error, 'error');
+        } else {
+           showToast('No se pudo eliminar el cliente.', 'error');
+        }
     }
   };
 
-  const filteredData = clientes.filter(c => 
-    c.nombre.toLowerCase().includes(search.toLowerCase()) || 
-    c.apellido.toLowerCase().includes(search.toLowerCase()) ||
-    c.cuit_cuil.includes(search)
-  );
+  const filteredData = clientes; // Data is already filtered by backend
+  
+  // Reset page to 1 when search or itemsPerPage changes
+  useEffect(() => setCurrentPage(1), [search, itemsPerPage]);
 
   const columnas = [
     { header: 'Cliente', accessor: 'apellido', render: (row) => (
@@ -114,11 +131,6 @@ export default function ClientesPage() {
     { header: 'CUIT/CUIL', accessor: 'cuit_cuil' },
     { header: 'Teléfono', accessor: 'telefono' },
     { header: 'Dirección', accessor: 'direccion' },
-    { header: 'Saldo', accessor: 'saldo_actual', render: (row) => (
-      <span className={`font-medium ${row.saldo_actual > 0 ? 'text-red-500' : 'text-green-500'}`}>
-        $ {row.saldo_actual}
-      </span>
-    )},
   ];
 
   return (
@@ -133,15 +145,38 @@ export default function ClientesPage() {
         </Boton>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center gap-3">
-        <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
-        <input 
-          type="text" 
-          placeholder="Buscar por nombre o CUIT..." 
-          className="flex-1 outline-none text-gray-600 placeholder-gray-400"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row items-center gap-3">
+        <form className="flex flex-1 items-center gap-3 w-full" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+            <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
+            
+            <input 
+              type="text" 
+              name={`buscar_${Math.random().toString(36).substring(2, 7)}`}
+              placeholder="Buscar por nombre, apellido o CUIT..." 
+              className="flex-1 outline-none text-gray-600 placeholder-gray-400 bg-transparent"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoComplete="new-password"
+              spellCheck="false"
+              autoCorrect="off"
+              readOnly={search === ''}
+              onFocus={(e) => e.target.removeAttribute('readonly')}
+            />
+        </form>
+        
+        {/* Results per page selector */}
+        <div className="flex items-center gap-2 border-l border-gray-100 pl-4">
+            <span className="text-xs text-slate-400 font-medium">Mostrar:</span>
+            <select 
+                value={itemsPerPage}
+                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                className="text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1 outline-none focus:border-indigo-300"
+            >
+                {[10, 15, 20, 25, 30, 40, 50, 100].map(n => (
+                    <option key={n} value={n}>{n}</option>
+                ))}
+            </select>
+        </div>
       </div>
 
       <Tabla 
@@ -150,6 +185,51 @@ export default function ClientesPage() {
         onEditar={handleOpenModal} 
         onEliminar={handleEliminar}
       />
+
+      {/* Pagination Controls */}
+      {totalPages > 0 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-xs text-slate-400">
+                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, totalRecords)} de {totalRecords} resultados
+            </span>
+            <div className="flex gap-1">
+                <button 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <ChevronLeftIcon className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-1 px-2">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1))
+                        .map((p, i, arr) => (
+                            <div key={p} className="flex items-center">
+                                {i > 0 && arr[i-1] !== p - 1 && <span className="text-slate-300 px-1">...</span>}
+                                <button
+                                    onClick={() => setCurrentPage(p)}
+                                    className={`w-8 h-8 rounded-md text-sm font-medium transition-colors ${
+                                        currentPage === p 
+                                        ? 'bg-indigo-600 text-white shadow-sm' 
+                                        : 'text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    {p}
+                                </button>
+                            </div>
+                        ))
+                    }
+                </div>
+                <button 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <ChevronRightIcon className="w-5 h-5" />
+                </button>
+            </div>
+        </div>
+      )}
 
       <Modal 
         isOpen={showModal} 
@@ -209,7 +289,8 @@ export default function ClientesPage() {
         onClose={() => setShowConfirm(false)}
         onConfirm={confirmDelete}
         title="Eliminar Cliente"
-        message="¿Estás seguro de que deseas eliminar este cliente?"
+        message="¿Estás seguro de que deseas eliminar este cliente? Esta acción no se puede deshacer."
+        requirePassword={true}
       />
     </LayoutPrincipal>
   );

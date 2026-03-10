@@ -1,10 +1,32 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import BarraLateral from './BarraLateral';
 import BarraNavegacion from './BarraNavegacion';
 
 export default function LayoutPrincipal({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[var(--bg-primary)]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // Don't render anything while redirecting
+  }
 
   return (
     <div className="flex h-screen bg-[var(--bg-primary)] overflow-hidden text-[var(--text-primary)] font-sans">

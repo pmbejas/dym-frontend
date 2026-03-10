@@ -15,6 +15,7 @@ import {
   PhoneIcon,
   UserIcon
 } from '@heroicons/react/24/outline'; // Updated import path for v2
+import ConfirmModal from '@/components/ConfirmModal';
 
 export default function ProveedoresPage() {
     const { showToast } = useToast();
@@ -91,15 +92,19 @@ export default function ProveedoresPage() {
         setShowConfirmDelete(true);
     };
 
-    const confirmDelete = async () => {
+    const confirmDelete = async (password) => {
         try {
-            await api.delete(`/proveedores/${selectedId}`);
+            await api.delete(`/proveedores/${selectedId}`, { data: { password } });
             showToast('Proveedor eliminado', 'success');
             setShowConfirmDelete(false);
             fetchProveedores();
         } catch (error) {
             console.error(error);
-            showToast('Error al eliminar', 'error');
+            if (error.response && error.response.data && error.response.data.error) {
+               showToast(error.response.data.error, 'error');
+            } else {
+               showToast('Error al eliminar', 'error');
+            }
         }
     };
 
@@ -156,16 +161,22 @@ export default function ProveedoresPage() {
 
             {/* Filtros */}
             <div className="mb-6 bg-[var(--bg-secondary)] p-4 rounded-xl border border-[var(--border-light)] shadow-sm">
-                 <div className="relative max-w-md">
+                 <form className="relative max-w-md" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
                     <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
                     <input 
                         type="text"
+                        name={`buscprov_${Math.random().toString(36).substring(2, 7)}`}
                         placeholder="Buscar por nombre, contacto o CUIT..." 
                         className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-light)] text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--color-brand-primary)] focus:border-transparent outline-none transition-all"
                         value={filtro}
                         onChange={(e) => setFiltro(e.target.value)}
+                        autoComplete="new-password"
+                        spellCheck="false"
+                        autoCorrect="off"
+                        readOnly={filtro === ''}
+                        onFocus={(e) => e.target.removeAttribute('readonly')}
                     />
-                 </div>
+                 </form>
             </div>
 
             <Tabla 
@@ -255,25 +266,14 @@ export default function ProveedoresPage() {
             )}
 
             {/* Confirm Delete Modal */}
-            {showConfirmDelete && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-                    <div className="bg-[var(--bg-secondary)] rounded-xl w-full max-w-sm p-6 shadow-2xl border border-[var(--border-light)] animate-scaleIn">
-                        <div className="text-center">
-                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
-                                <TrashIcon className="h-6 w-6 text-red-600" />
-                            </div>
-                            <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">Confirmar Eliminación</h3>
-                            <p className="text-sm text-[var(--text-secondary)] mb-6">
-                                ¿Estás seguro de que deseas eliminar este proveedor? Esta acción no se puede deshacer.
-                            </p>
-                            <div className="flex justify-center gap-3">
-                                <Boton variant="secondary" onClick={() => setShowConfirmDelete(false)}>Cancelar</Boton>
-                                <Boton variant="danger" onClick={confirmDelete}>Eliminar</Boton>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmModal 
+                isOpen={showConfirmDelete}
+                onClose={() => setShowConfirmDelete(false)}
+                onConfirm={confirmDelete}
+                title="Confirmar Eliminación"
+                message="¿Estás seguro de que deseas eliminar este proveedor? Esta acción no se puede deshacer."
+                requirePassword={true}
+            />
         </LayoutPrincipal>
     );
 }

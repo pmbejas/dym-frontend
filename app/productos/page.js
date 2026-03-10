@@ -1,26 +1,35 @@
-'use client';
-import { useState, useEffect } from 'react';
+'use client'
+
+import { useState, useEffect, useMemo } from 'react';
 import LayoutPrincipal from '@/components/LayoutPrincipal';
 import Tabla from '@/components/Tabla';
 import Boton from '@/components/Boton';
 import Modal from '@/components/Modal';
+import ImportModal from '@/components/ImportModal';
 import Input from '@/components/Input';
-import api from '@/services/api';
+import api, { getProductos } from '@/services/api';
 import { useToast } from '@/context/ToastContext';
 import ConfirmModal from '@/components/ConfirmModal';
-import { PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, MagnifyingGlassIcon, DocumentArrowUpIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from '@heroicons/react/24/outline';
 import { useCotizacion } from '@/context/CotizacionContext';
 
 export default function ProductosPage() {
   const { showToast } = useToast();
   const { cotizacion } = useCotizacion(); // Context
   const [productos, setProductos] = useState([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [categorias, setCategorias] = useState([]);
   const [listasPrecios, setListasPrecios] = useState([]); // Lists
   const [selectedListId, setSelectedListId] = useState(''); // Selected List
   
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
   // State for Modals & UI
   const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [modoEdicion, setModoEdicion] = useState(false);
@@ -39,8 +48,16 @@ export default function ProductosPage() {
     ajuste_flete_usd: 0
   });
 
+  // Use effectively a debounced search to avoid fetching per keystroke
   useEffect(() => {
-    fetchProductos();
+    const delayDebounceFn = setTimeout(() => {
+      fetchProductos();
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [search, currentPage, itemsPerPage]);
+
+  useEffect(() => {
     fetchCategorias();
     fetchListasPrecios();
   }, []);
@@ -61,12 +78,16 @@ export default function ProductosPage() {
 
   const fetchProductos = async () => {
     try {
-      const { data } = await api.get('/productos');
-      setProductos(Array.isArray(data) ? data : []);
+      const result = await getProductos(currentPage, itemsPerPage, search);
+      setProductos(Array.isArray(result.data) ? result.data : []);
+      setTotalPages(result.totalPages || 1);
+      setTotalRecords(result.totalItems || 0);
     } catch (error) {
        console.error("Error fetching products", error);
        showToast('No se pudo cargar la lista de productos.', 'error');
        setProductos([]);
+       setTotalPages(1);
+       setTotalRecords(0);
     }
   };
 
@@ -178,6 +199,11 @@ export default function ProductosPage() {
         <p className="text-xs text-gray-400">{row.descripcion}</p>
       </div>
     )},
+    { header: 'Precio Base (USD)', accessor: 'precio_base_usd', className: 'text-right hidden sm:table-cell', render: (row) => (
+      <div className="text-slate-500 font-medium">
+        ${parseFloat(row.precio_base_usd).toFixed(2)}
+      </div>
+    )},
     { header: 'Costo Total', accessor: 'costo_total', className: 'text-right hidden md:table-cell', render: (row) => (
       <div className="font-medium text-slate-500 text-right">
         ${calculateTotalCost(row).total}
@@ -208,10 +234,12 @@ export default function ProductosPage() {
     )},
   ];
 
-  const filteredData = productos.filter(p => 
-    p.nombre.toLowerCase().includes(search.toLowerCase()) || 
-    p.sku.toLowerCase().includes(search.toLowerCase())
-  );
+  // Remotely paginated data is the unique data
+  const paginatedData = productos;
+
+  // Reset page to 1 when search or itemsPerPage changes
+  // Already handled locally by state, but needs dependency trigger
+  useEffect(() => setCurrentPage(1), [search, itemsPerPage]);
 
   return (
     <LayoutPrincipal>
@@ -236,31 +264,142 @@ export default function ProductosPage() {
                 </select>
              </div>
 
+             {/* Import Button */}
+             <Boton 
+                onClick={() => setShowImportModal(true)} 
+                tipo="secondary" 
+                className="flex items-center gap-2"
+             >
+                <DocumentArrowUpIcon className="w-5 h-5" />
+                Importar Excel
+             </Boton>
+
              <Boton onClick={() => handleOpenModal()} tipo="primary" className="flex items-center gap-2">
                 <PlusIcon className="w-5 h-5" /> Nuevo
              </Boton>
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center gap-3">
-        <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
-        <input 
-          type="text" 
-          placeholder="Buscar por nombre o SKU..." 
-          className="flex-1 outline-none text-gray-600 placeholder-gray-400"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row items-center gap-3">
+        <div className="flex flex-1 items-center gap-3 w-full">
+            <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
+            <input 
+            type="text" 
+            placeholder="Buscar por nombre o SKU..." 
+            className="flex-1 outline-none text-gray-600 placeholder-gray-400"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            />
+        </div>
+        
+        {/* Results per page selector */}
+        <div className="flex items-center gap-2 border-l border-gray-100 pl-4">
+            <span className="text-xs text-slate-400 font-medium">Mostrar:</span>
+            <select 
+                value={itemsPerPage}
+                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                className="text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1 outline-none focus:border-indigo-300"
+            >
+                {[10, 15, 20, 25, 30, 40, 50, 100].map(n => (
+                    <option key={n} value={n}>{n}</option>
+                ))}
+            </select>
+        </div>
       </div>
 
       <Tabla 
         columnas={columnas} 
-        datos={filteredData} 
+        datos={paginatedData} 
         onEditar={handleOpenModal} 
         onEliminar={handleEliminar}
       />
       
-      {/* Modals ... */}
+      {/* Pagination Controls */}
+      {totalPages > 0 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-xs text-slate-400">
+                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, totalRecords)} de {totalRecords} resultados
+            </span>
+            <div className="flex gap-1">
+                <button 
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed hidden sm:block"
+                    title="Ir a primera página"
+                >
+                    <ChevronDoubleLeftIcon className="w-4 h-4" />
+                </button>
+                <button 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 5))}
+                    disabled={currentPage <= 5}
+                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-xs"
+                    title="Retroceder 5 páginas"
+                >
+                    -5
+                </button>
+                <button 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <ChevronLeftIcon className="w-5 h-5" />
+                </button>
+                {/* Simplified page numbers: just current/total logic or limit range */}
+                <div className="flex items-center gap-1 px-2">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2))
+                        .map((p, i, arr) => (
+                            <div key={p} className="flex items-center">
+                                {i > 0 && arr[i-1] !== p - 1 && <span className="text-slate-300 px-1">...</span>}
+                                <button
+                                    onClick={() => setCurrentPage(p)}
+                                    className={`w-8 h-8 rounded-md text-sm font-medium transition-colors ${
+                                        currentPage === p 
+                                        ? 'bg-indigo-600 text-white shadow-sm' 
+                                        : 'text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    {p}
+                                </button>
+                            </div>
+                        ))
+                    }
+                </div>
+                <button 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <ChevronRightIcon className="w-5 h-5" />
+                </button>
+                <button 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 5))}
+                    disabled={currentPage >= totalPages - 4}
+                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-xs"
+                    title="Avanzar 5 páginas"
+                >
+                    +5
+                </button>
+                <button 
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed hidden sm:block"
+                    title="Ir a última página"
+                >
+                    <ChevronDoubleRightIcon className="w-4 h-4" />
+                </button>
+            </div>
+        </div>
+      )}
+      
+      {/* Modals */}
+
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={fetchProductos}
+        categorias={categorias}
+      />
 
       <Modal 
         isOpen={showModal} 
@@ -268,7 +407,8 @@ export default function ProductosPage() {
         title={modoEdicion ? "Editar Producto" : "Nuevo Producto"}
       >
         <form onSubmit={handleSubmit} className="flex flex-col h-full">
-          <div className="grid grid-cols-12 gap-4">
+          {/* ... Existing form content ... reusing form logic */}
+           <div className="grid grid-cols-12 gap-4">
             {/* Identity Section */}
             <div className="col-span-12 md:col-span-4">
               <Input 
