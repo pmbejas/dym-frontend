@@ -47,6 +47,13 @@ api.interceptors.response.use(
   }
 );
 
+// Configuracion
+export const getConfiguracion = async () => {
+  const response = await api.get('/configuracion');
+  console.log("getConfiguracion: ", response.data);
+  return response.data;
+};
+
 // Compras
 export const getCompras = async () => {
   const response = await api.get('/compras');
