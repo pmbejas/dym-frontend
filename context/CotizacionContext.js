@@ -35,7 +35,7 @@ export function CotizacionProvider({ children }) {
         clave: 'cotizacion_dolar',
         valor: newRate.toString()
       }
-      respuesta = await updateConfiguracion(data);
+      const respuesta = await updateConfiguracion(data);
       setCotizacion(parseFloat(newRate));
       return true;
     } catch (error) {
