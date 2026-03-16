@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getConfiguracion } from '@/services/api';
+import { getConfiguracion, updateConfiguracion } from '@/services/api';
 import { useAuth } from './AuthContext';
 
 const CotizacionContext = createContext();
@@ -31,10 +31,11 @@ export function CotizacionProvider({ children }) {
 
   const updateCotizacion = async (newRate) => {
     try {
-      await api.put('/configuracion', { 
-        clave: 'cotizacion_dolar', 
-        valor: newRate.toString() 
-      });
+      const data = {
+        clave: 'cotizacion_dolar',
+        valor: newRate.toString()
+      }
+      respuesta = await updateConfiguracion(data);
       setCotizacion(parseFloat(newRate));
       return true;
     } catch (error) {

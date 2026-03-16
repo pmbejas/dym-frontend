@@ -50,7 +50,14 @@ api.interceptors.response.use(
 // Configuracion
 export const getConfiguracion = async () => {
   const response = await api.get('/configuracion');
-  console.log("getConfiguracion: ", response.data);
+  return response.data;
+};
+
+export const updateConfiguracion = async (data) => {
+  const response = await api.put('/configuracion', { 
+    clave: data.clave, 
+    valor: data.valor 
+  });
   return response.data;
 };
 
